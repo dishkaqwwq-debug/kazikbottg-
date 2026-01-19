@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Cases Mini App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+:root{
+  --bg:#0b0e14;
+  --panel:#141826;
+  --card:#1b2136;
+  --accent:#ffb703;
+  --text:#ffffff;
+  --muted:#9aa3b2;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Inter,Arial,sans-serif;
+}
+
+/* ---------- LOADING ---------- */
+#loading{
+  position:fixed;
+  inset:0;
+  background:linear-gradient(180deg,#0b0e14,#0f1424);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+}
+.loader{
+  width:260px;
+  text-align:center;
+}
+.loader h2{margin:0 0 12px}
+.progress{
+  height:10px;
+  background:#1c2140;
+  border-radius:10px;
+  overflow:hidden;
+}
+.bar{
+  height:100%;
+  width:0%;
+  background:var(--accent);
+  transition:width .3s;
+}
+
+/* ---------- APP ---------- */
+.app{
+  padding:14px;
+  display:none;
+}
+.header{
+  background:var(--panel);
+  border-radius:16px;
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:14px;
+}
+.balance{color:var(--accent);font-weight:700}
+
+/* ---------- CASES ---------- */
+.cases{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+}
+.case{
+  background:var(--card);
+  border-radius:18px;
+  padding:12px;
+  text-align:center;
+}
+.case img{
+  width:100%;
+  max-height:120px;
+  object-fit:contain;
+}
+.case button{
+  margin-top:8px;
+  width:100%;
+  padding:10px;
+  border:0;
+  border-radius:12px;
+  background:var(--accent);
+  font-weight:700;
+  cursor:pointer;
+}
+
+/* ---------- MODAL ---------- */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.6);
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+.modal .box{
+  background:var(--panel);
+  border-radius:18px;
+  padding:16px;
+  width:90%;
+  max-width:320px;
+  text-align:center;
+}
+
+/* ---------- DESKTOP ---------- */
+@media (min-width:768px){
+  .app{max-width:900px;margin:0 auto}
+  .cases{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="loader">
+    <h2>Загрузка</h2>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <div class="header">
+    <div>👤 <span id="user">Игрок</span></div>
+    <div class="balance">💰 <span id="balance">1000</span></div>
+  </div>
+
+  <div class="cases">
+    <div class="case">
+      <img src="images/case_basic.png">
+      <h4>Basic Case</h4>
+      <p class="muted">Цена: 100</p>
+      <button onclick="openCase('basic')">Открыть</button>
+    </div>
+
+    <div class="case">
+      <img src="images/case_gold.png">
+      <h4>Gold Case</h4>
+      <p class="muted">Цена: 300</p>
+      <button onclick="openCase('gold')">Открыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal" id="modal">
+  <div class="box">
+    <h3 id="rewardTitle"></h3>
+    <img id="rewardImg" style="width:120px">
+    <p id="rewardText"></p>
+    <button onclick="closeModal()">OK</button>
+  </div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.expand();
+
+/* USER */
+const user = tg.initDataUnsafe.user;
+if(user){
+  document.getElementById("user").innerText = user.username || user.first_name;
+}
+
+/* LOADING */
+let p=0;
+const bar=document.getElementById("bar");
+const load=setInterval(()=>{
+  p+=10; bar.style.width=p+"%";
+  if(p>=100){
+    clearInterval(load);
+    document.getElementById("loading").style.display="none";
+    document.getElementById("app").style.display="block";
+  }
+},120);
+
+/* GAME LOGIC */
+let balance=1000;
+const rewards={
+  basic:[
+    {name:"Common",img:"images/reward_common.png",win:50,chance:70},
+    {name:"Rare",img:"images/reward_rare.png",win:150,chance:25},
+    {name:"Epic",img:"images/reward_epic.png",win:500,chance:5}
+  ],
+  gold:[
+    {name:"Rare",img:"images/reward_rare.png",win:300,chance:60},
+    {name:"Epic",img:"images/reward_epic.png",win:1000,chance:40}
+  ]
+};
+
+function openCase(type){
+  const price = type==="basic"?100:300;
+  if(balance<price){ alert("Недостаточно средств"); return; }
+  balance-=price; updateBalance();
+
+  const roll=Math.random()*100;
+  let sum=0, reward;
+  for(const r of rewards[type]){
+    sum+=r.chance;
+    if(roll<=sum){ reward=r; break; }
+  }
+  balance+=reward.win;
+  updateBalance();
+  showReward(reward);
+}
+
+function updateBalance(){
+  document.getElementById("balance").innerText=balance;
+}
+
+function showReward(r){
+  document.getElementById("rewardTitle").innerText=r.name;
+  document.getElementById("rewardImg").src=r.img;
+  document.getElementById("rewardText").innerText="Выигрыш: "+r.win;
+  document.getElementById("modal").style.display="flex";
+}
+function closeModal(){
+  document.getElementById("modal").style.display="none";
+}
+</script>
+
+</body>
+</html>
